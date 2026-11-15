@@ -30,7 +30,7 @@ jobs:
     env:
       MA_KLUCZ: ${{ secrets.OPLATY_KEYSTORE_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Sprawdzenie sekretów (bez wartości)
         env:
@@ -53,14 +53,11 @@ jobs:
         if: env.MA_KLUCZ != 'true'
         run: echo "::warning::Brak sekretów klucza podpisu – portal zostanie opublikowany bez pliku APK."
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         if: env.MA_KLUCZ == 'true'
         with:
           distribution: temurin
           java-version: 17
-
-      - uses: android-actions/setup-android@v3
-        if: env.MA_KLUCZ == 'true'
 
       - uses: gradle/actions/setup-gradle@v4
         if: env.MA_KLUCZ == 'true'
@@ -112,7 +109,7 @@ jobs:
       name: github-pages
       url: ${{ steps.publikacja.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Pobranie APK
         uses: actions/download-artifact@v4
