@@ -1,0 +1,150 @@
+# Wdrożenie „Opłaty i terminy”.
+#  Każde wysłanie zmian na main (albo Actions → „Wdrożenie” → Run workflow):
+#   1. buduje aplikację Android (APK) podpisaną stałym kluczem,
+#   2. publikuje portal pod https://oplaty.projekty-drogowe.pl razem z plikiem do pobrania /oplaty.apk.
+#  Dane NIE są w repozytorium – leżą w arkuszu na Dysku Google właściciela.
+#
+# Sekrety (Settings → Secrets and variables → Actions → New repository secret):
+#   OPLATY_KEYSTORE_BASE64, OPLATY_KEYSTORE_PASSWORD, OPLATY_KEY_ALIAS, OPLATY_KEY_PASSWORD – klucz podpisu APK
+# Strona: Settings → Pages → Source: „GitHub Actions”, Custom domain: oplaty.projekty-drogowe.pl
+name: Wdrożenie
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: wdrozenie
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    name: Aplikacja Android (APK)
+    runs-on: ubuntu-latest
+    env:
+      MA_KLUCZ: ${{ secrets.OPLATY_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sprawdzenie sekretów (bez wartości)
+        env:
+          S1: ${{ secrets.OPLATY_KEYSTORE_BASE64 != '' }}
+          S2: ${{ secrets.OPLATY_KEYSTORE_PASSWORD != '' }}
+          S3: ${{ secrets.OPLATY_KEY_ALIAS != '' }}
+          S4: ${{ secrets.OPLATY_KEY_PASSWORD != '' }}
+        run: |
+          {
+            echo "### Sekrety"
+            echo "| Sekret | Ustawiony |"; echo "|---|---|"
+            i=1
+            for n in OPLATY_KEYSTORE_BASE64 OPLATY_KEYSTORE_PASSWORD OPLATY_KEY_ALIAS OPLATY_KEY_PASSWORD; do
+              v=$(eval echo "\$S$i"); [ "$v" = "true" ] && z="✅" || z="❌ brak"
+              echo "| $n | $z |"; i=$((i+1))
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Brak klucza – APK pominięty
+        if: env.MA_KLUCZ != 'true'
+        run: echo "::warning::Brak sekretów klucza podpisu – portal zostanie opublikowany bez pliku APK."
+
+      - uses: actions/setup-java@v4
+        if: env.MA_KLUCZ == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        if: env.MA_KLUCZ == 'true'
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: env.MA_KLUCZ == 'true'
+
+      - name: Klucz podpisu
+        if: env.MA_KLUCZ == 'true'
+        run: |
+          echo "${{ secrets.OPLATY_KEYSTORE_BASE64 }}" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/oplaty.keystore"
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/oplaty.keystore" >> "$GITHUB_ENV"
+          keytool -list -keystore "$RUNNER_TEMP/oplaty.keystore" -storepass "${{ secrets.OPLATY_KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.OPLATY_KEY_ALIAS }}" > /dev/null \
+            && echo "Klucz podpisu: OK ✅" | tee -a "$GITHUB_STEP_SUMMARY" \
+            || { echo "::error::Klucz podpisu nie otwiera się – sprawdź sekrety OPLATY_KEYSTORE_*"; exit 1; }
+
+      - name: Budowanie
+        if: env.MA_KLUCZ == 'true'
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.OPLATY_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.OPLATY_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.OPLATY_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          set +e
+          ./gradlew --no-daemon assembleRelease 2>&1 | tee gradle.log
+          wynik=${PIPESTATUS[0]}
+          set -e
+          if [ "$wynik" != "0" ]; then
+            grep -E "^e: |^\* What went wrong" -A2 gradle.log | grep -v "^--$" | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+            exit "$wynik"
+          fi
+          mv app/build/outputs/apk/release/app-release.apk ../oplaty.apk
+          echo "### Zbudowano APK – wersja 1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: env.MA_KLUCZ == 'true'
+        with:
+          name: oplaty-apk
+          path: oplaty.apk
+          retention-days: 30
+
+  strona:
+    name: Portal www
+    needs: apk
+    if: ${{ !cancelled() && needs.apk.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publikacja.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pobranie APK
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: oplaty-apk
+          path: web
+
+      - name: Informacja o wersji
+        run: |
+          python3 -c 'import json,os,pathlib; p=pathlib.Path("web/oplaty.apk"); print(json.dumps({"kod": int(os.environ["GITHUB_RUN_NUMBER"]), "nazwa": "1.0." + os.environ["GITHUB_RUN_NUMBER"], "apk": p.exists(), "rozmiar": p.stat().st_size if p.exists() else 0}))' > web/wersja.json
+          cat web/wersja.json
+          # nowa wersja service workera = telefony od razu pobiorą nowy portal
+          sed -i "s/const CACHE = 'oplaty-v[0-9]*'/const CACHE = 'oplaty-v${GITHUB_RUN_NUMBER}'/" web/sw.js
+          test -f web/.well-known/assetlinks.json && echo "assetlinks.json: OK"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: publikacja
+        uses: actions/deploy-pages@v4
+
+      - name: Kontrola po publikacji
+        run: |
+          sleep 20
+          A=https://oplaty.projekty-drogowe.pl
+          for f in "" ".well-known/assetlinks.json" "oplaty.apk"; do
+            KOD=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$A/$f") || KOD=000
+            [ "$KOD" = "200" ] && z="✅" || z="⚠️ kod $KOD"
+            echo "$A/$f: $z" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          echo "(⚠️ przy pierwszym wdrożeniu jest normalne, dopóki DNS i certyfikat HTTPS nie zaczną działać – do kilku godzin)" >> "$GITHUB_STEP_SUMMARY"

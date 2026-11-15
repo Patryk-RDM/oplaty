@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "pl.projektydrogowe.oplaty",
+    "sha256_cert_fingerprints": ["F7:E0:FF:DA:B4:A9:7F:B1:73:5E:ED:D3:78:27:47:4F:F1:07:C7:09:06:A1:72:18:BA:18:D8:F9:4F:A1:A5:96"]
+  }
+}]

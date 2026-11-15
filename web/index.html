@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Opłaty i terminy</title>
+  <meta name="theme-color" content="#0f5c4d">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Opłaty">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="nav" id="nav">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="" width="32" height="32">
+        <span>Opłaty i terminy</span>
+      </div>
+      <a href="#/pulpit" data-view="pulpit"><span class="ico">◉</span><span>Pulpit</span></a>
+      <a href="#/platnosci" data-view="platnosci"><span class="ico">≡</span><span>Płatności</span></a>
+      <a href="#/harmonogram" data-view="harmonogram"><span class="ico">▦</span><span>Harmonogram</span></a>
+      <a href="#/wspoldzielone" data-view="wspoldzielone"><span class="ico">⇄</span><span>Współdzielone</span></a>
+      <a href="#/najem" data-view="najem"><span class="ico">⌂</span><span>Najem</span></a>
+      <a href="#/ustawienia" data-view="ustawienia"><span class="ico">⚙</span><span>Ustawienia</span></a>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <h1 id="title">Pulpit</h1>
+        <button class="sync" id="syncBtn" type="button" title="Synchronizuj z Dyskiem Google">
+          <span class="dot"></span><span id="syncTxt">Tryb lokalny</span>
+        </button>
+      </header>
+      <main id="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <button class="fab" id="fab" type="button" aria-label="Dodaj">+</button>
+  <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

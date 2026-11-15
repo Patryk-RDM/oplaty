@@ -1,0 +1,11 @@
+# dane i klucze NIGDY do repozytorium
+dane-*.json
+oplaty-kopia-*.json
+*.ics
+*.jks
+*.keystore
+*.base64.txt
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
